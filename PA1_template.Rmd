@@ -1,25 +1,179 @@
----
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
----
+# Reproducible Research: Peer Assessment 1
 
+## Loading and preprocessing data
 
-## Loading and preprocessing the data
+* Data is downloaded if not present .
+* Zip file downloaded is uncompressed.
+* Data is preprocessed .
+* Data is inxpected .
 
+```{r getData, echo=TRUE}
 
+getData <- function() {
+
+    install.packages("downloader",repos="http://cran.rstudio.com/")
+    require(downloader)
+    url<-"https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip"  
+    
+    zip_source_name = "activity.zip"
+    
+    print("check file")
+    
+    if(!file.exists(zip_source_name)) {
+    
+            print("download file")
+            download(url,destfile=zip_source_name, mode="wb")          
+    }
+    
+    if (!"act" %in% ls()) { 
+                  
+            print("unzip file")
+            act <- unzip(zip_source_name)
+    }   
+ 
+    actData <- read.csv(act, header=T, colClasses = c("integer", "Date", "factor"))
+    actData$interval <- factor(actData$interval)
+    actData$date <- as.Date(actData$date, format="%Y-%m-%d")
+    actData
+}
+actData <- getData()
+```   
+
+Inspect data.
+```{r inspectData, echo=TRUE}
+
+head(actData)
+dim(actData)
+summary(actData)
+str(actData)
+
+```
 
 ## What is mean total number of steps taken per day?
 
+* Calculate the total number of steps taken per day
+* Make a histogram of the total number of steps taken each day
+* Calculate and report the mean and median of the total number of steps taken per day
 
+```{r stepsPerDay, echo=TRUE}
+
+ actDataNoNA <- na.omit(actData)
+  
+ totalStepsPerDay <- aggregate(steps ~ date, actDataNoNA, sum)
+
+ hist(totalStepsPerDay$steps, breaks = 20, main="Histogram of steps ", xlab="Number of steps taken per day", ylab = "Number of times", col="grey")
+ 
+```  
+Mean of the total number of steps taken per day
+```{r mean, echo=TRUE}
+
+ mean(totalStepsPerDay$steps)
+ 
+```
+
+Median of the total number of steps taken per day
+```{r median, echo=TRUE}
+
+ median(totalStepsPerDay$steps)
+ 
+```
 
 ## What is the average daily activity pattern?
 
+```{r dailyActivity, echo=TRUE}
 
+library(ggplot2)
 
-## Imputing missing values
+meanSteps <- aggregate(actDataNoNA$steps, list(interval = as.numeric(as.character(actDataNoNA$interval))), FUN = "mean")
 
+names(meanSteps)[2] <- "avgNumberOfSteps"
 
+ggplot(meanSteps, aes(interval, avgNumberOfSteps)) + geom_line(color = "grey", size = 0.6) + labs(title = "Average daily activity pattern", x = "5-minute intervals", y = "Average number of steps")
 
+    
+```  
+
+* Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?  
+
+```{r maxNumOfSteps, echo=TRUE}
+
+    meanSteps[meanSteps$avgNumberOfSteps == max(meanSteps$avgNumberOfSteps), ]
+
+``` 
+
+## Inputing missing values
+
+* The total number of rows with NAs:
+
+```{r numNA, echo=TRUE}
+
+    sum(is.na(actData))
+
+``` 
+
+* Devise a strategy for filling in all of the missing values in the dataset. 
+
+Using the mean for that 5-minute interval
+
+```{r filledData, echo=TRUE}
+
+  filledData <- actData 
+  for (i in 1:nrow(filledData)) {
+      if (is.na(filledData$steps[i])) {
+          filledData$steps[i] <- meanSteps[which(filledData$interval[i] == meanSteps$interval), ]$avgNumberOfSteps
+      }
+  }
+  
+  # checking data correctness
+  head(filledData)
+  sum(is.na(filledData))  
+
+``` 
+* Histogram of the total number of steps taken each day 
+
+ ```{r stepsPerDayFilledData, echo=TRUE}
+
+ggplot(filledData, aes(date, steps)) + geom_bar(stat = "identity",colour = "grey",fill = "grey",width = 0.7) + labs(title = "Histogram of total number of steps whit filled na data", x = "Date", y = "Steps")
+
+```  
+
+* Mean of the total number of steps taken per day
+```{r meanFilled, echo=TRUE}
+
+   totalStepsPerDayFilled <- aggregate(steps ~ date, filledData, sum)
+   mean(totalStepsPerDayFilled$steps)
+ 
+```
+
+* Median of the total number of steps taken per day
+```{r medianFilled, echo=TRUE}
+
+     median(totalStepsPerDayFilled$steps)
+ 
+```
 ## Are there differences in activity patterns between weekdays and weekends?
+
+```{r avgNumberOfStepsWk, echo=TRUE}
+Sys.setlocale("LC_TIME", "English") 
+                                   
+filledData$weekdays <- weekdays(as.Date(filledData$date))
+filledData$weekdays <- ifelse(filledData$weekdays %in% c("Saturday", "Sunday"),"weekend", "weekday")
+
+meanStepsWk <- aggregate(filledData$steps, 
+                      list(interval = as.numeric(as.character(filledData$interval)), 
+                           weekdays = filledData$weekdays),
+                      FUN = "mean")
+                      
+names(meanStepsWk)[3] <- "avgNumberOfStepsWk"    
+
+library(lattice)
+
+xyplot(avgNumberOfStepsWk ~ interval | weekdays,data= meanStepsWk,
+       layout = c(1, 2), type = "l", col="grey", 
+       xlab = "Interval", ylab = "Average number of steps")  
+       
+```       
+
+    
+
+
